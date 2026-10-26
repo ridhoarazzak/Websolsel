@@ -1,0 +1,39 @@
+<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700&display=swap"><link rel="stylesheet" href="solsel.css"><title>Profil nagari - Solsel Siaga</title></head><body><header></header>
+<main><aside>
+<h1>Profil nagari</h1>
+<p>Pilih nagari untuk melihat gambaran singkat penduduk, lahan, dan ketinggian. Garis merah pada batang menunjukkan rata-rata Solok Selatan.</p>
+<label for="pilih">Nagari</label><select id="pilih"></select>
+<div id="kartu"></div>
+<button onclick="window.print()">Cetak profil</button>
+<label>Daftar semua nagari (klik judul kolom untuk mengurutkan)</label>
+<table id="tbl"><thead><tr><th data-k="NAMOBJ">Nagari</th><th data-k="penduduk">Jiwa</th><th data-k="kepadatan">Per km²</th><th data-k="pHutan">Hutan %</th></tr></thead><tbody></tbody></table>
+<div id="pesan" class="pesan" hidden></div>
+<p class="catatan">Semua angka adalah perkiraan awal dari citra satelit dan peta penduduk, bukan data resmi BPS atau pemerintah nagari. "Pertanian" hanya mencakup lahan tanaman semusim (sawah, ladang); kebun sawit, karet, dan kebun campuran bisa tercatat sebagai hutan atau lainnya. Untuk dokumen resmi, padukan dengan data nagari.</p>
+</aside><div id="map"></div></main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script><script src="solsel.js"></script>
+<script>
+mulai('profil');const m=buatPeta();
+(async()=>{
+const d=await muat('data/nagari_profil.geojson');if(!d)return;
+const F=d.features;F.forEach(f=>{const p=f.properties,ha=p.luas_km2*100;
+ p.kepadatan=p.penduduk/p.luas_km2;p.pHutan=p.hutan_ha/ha*100;p.pTani=p.pertanian_ha/ha*100;p.pBangun=p.terbangun_ha/ha*100;});
+const rata=k=>F.reduce((a,f)=>a+f.properties[k],0)/F.length;
+const lap=L.geoJSON(d,{style:{color:'#1F4D3A',weight:1,fillColor:'#1F4D3A',fillOpacity:.12},onEachFeature:(f,l)=>l.on('click',()=>pilih(f.properties.NAMOBJ))}).addTo(m);
+m.fitBounds(lap.getBounds());let urut='NAMOBJ',naik=true;
+F.map(f=>f.properties.NAMOBJ).sort().forEach(n=>$('pilih').add(new Option(n,n)));
+function batang(nama,k,maks,sat){const v=F.find(f=>f.properties.NAMOBJ===$('pilih').value).properties[k];
+ return '<div>'+nama+': <b>'+fmt(v,1)+sat+'</b></div><div class="bar"><i style="width:'+Math.min(100,v/maks*100)+'%"></i><u style="left:'+Math.min(100,rata(k)/maks*100)+'%"></u></div>';}
+function pilih(n){$('pilih').value=n;const f=F.find(x=>x.properties.NAMOBJ===n),p=f.properties;
+ lap.eachLayer(l=>l.setStyle({fillOpacity:l.feature===f?.45:.12}));
+ $('kartu').innerHTML='<div class="kartu"><div><span class="angka">'+fmt(p.penduduk)+'</span>perkiraan jiwa</div><div><span class="angka">'+fmt(p.luas_km2,1)+'</span>km² luas</div></div>'
+  +batang('Tertutup hutan','pHutan',100,'%')+batang('Lahan tanaman semusim','pTani',100,'%')+batang('Area terbangun','pBangun',Math.max(10,...F.map(x=>x.properties.pBangun)),'%')
+  +'<p>Ketinggian rata-rata: <b>'+fmt(p.elev_rata)+' m</b> dari permukaan laut.</p>';
+ [...document.querySelectorAll('#tbl tbody tr')].forEach(r=>r.classList.toggle('pilih',r.dataset.n===n));
+ m.fitBounds(L.geoJSON(f).getBounds());}
+function tabel(){const tb=document.querySelector('#tbl tbody');tb.innerHTML='';
+ [...F].sort((a,b)=>{const x=a.properties[urut],y=b.properties[urut];return(x>y?1:x<y?-1:0)*(naik?1:-1);}).forEach(f=>{const p=f.properties,r=tb.insertRow();r.dataset.n=p.NAMOBJ;
+  r.innerHTML='<td>'+p.NAMOBJ+'</td><td>'+fmt(p.penduduk)+'</td><td>'+fmt(p.kepadatan)+'</td><td>'+fmt(p.pHutan)+'</td>';r.onclick=()=>pilih(p.NAMOBJ);});}
+document.querySelectorAll('#tbl th').forEach(th=>th.onclick=()=>{naik=urut===th.dataset.k?!naik:false;urut=th.dataset.k;tabel();pilih($('pilih').value);});
+$('pilih').onchange=e=>pilih(e.target.value);tabel();pilih($('pilih').value);
+})();
+</script></body></html>

@@ -1,0 +1,41 @@
+<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700&display=swap"><link rel="stylesheet" href="solsel.css"><title>Kebakaran - Solsel Siaga</title></head><body><header></header>
+<main><aside>
+<h1>Titik panas dan lahan terbakar</h1>
+<p>Geser tanggal untuk melihat di mana satelit menangkap panas tinggi dan lahan yang tampak terbakar.</p>
+<label for="geser">Tampilkan sampai <output id="tgl">-</output></label>
+<input id="geser" type="range" min="0" max="0" value="0">
+<label for="rentang">Rentang waktu</label>
+<select id="rentang"><option value="1">1 hari</option><option value="3">3 hari</option><option value="7" selected>7 hari</option><option value="30">30 hari</option></select>
+<div class="kartu"><div><span class="angka" id="nTitik">-</span>titik panas</div><div><span class="angka" id="nBakar">-</span>hektare tampak terbakar</div></div>
+<p id="teratas"></p>
+<label><input type="checkbox" id="cBakar" checked> Tampilkan lahan tampak terbakar</label>
+<div id="pesan" class="pesan" hidden></div>
+<p class="catatan">Titik panas berarti satelit menangkap suhu tinggi di petak sekitar 1 km, belum tentu ada api besar. Awan dan asap bisa menutupi. Lahan tampak terbakar adalah perkiraan awal dari citra satelit. Untuk laporan resmi, hubungi BPBD atau nagari setempat.</p>
+</aside><div id="map"></div></main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script><script src="solsel.js"></script>
+<script>
+mulai('kebakaran');const m=buatPeta();
+(async()=>{
+const [nag,tp,bk]=await Promise.all([muat('data/nagari_kebakaran.geojson'),muat('data/titik_panas.geojson'),muat('data/bekas_terbakar.geojson')]);
+if(nag){const l=L.geoJSON(nag,{style:{color:'#1F4D3A',weight:1,fillOpacity:.04}}).addTo(m);m.fitBounds(l.getBounds());
+ $('nBakar').textContent=fmt(nag.features.reduce((a,f)=>a+(f.properties.bakar_ha||0),0));}
+let lb;if(bk)lb=L.geoJSON(bk,{style:{color:'#7A2E12',weight:1,fillColor:'#B8481D',fillOpacity:.55}}).addTo(m);
+$('cBakar').onchange=e=>{if(lb)e.target.checked?lb.addTo(m):m.removeLayer(lb);};
+if(!tp)return;
+if(!tp.features.length){$('teratas').textContent='Tidak ada titik panas dalam 90 hari terakhir.';return;}
+const fs=tp.features,tg=fs.map(f=>f.properties.tanggal).sort(),d0=new Date(tg[0]),n=Math.round((new Date(tg.at(-1))-d0)/864e5);
+const g=$('geser');g.max=n;g.value=n;const grup=L.layerGroup().addTo(m);
+const iso=i=>new Date(d0.getTime()+i*864e5).toISOString().slice(0,10);
+function gambar(){
+ const sampai=iso(+g.value),dari=iso(+g.value-$('rentang').value+1);
+ $('tgl').textContent=new Date(sampai).toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'});
+ grup.clearLayers();const hit={};let c=0;
+ fs.forEach(f=>{const p=f.properties;if(p.tanggal<dari||p.tanggal>sampai)return;c++;hit[p.nagari]=(hit[p.nagari]||0)+1;
+  const [x,y]=f.geometry.coordinates;L.circleMarker([y,x],{radius:6,color:'#fff',weight:1,fillColor:'#D62F1F',fillOpacity:.9}).bindPopup('<b>'+p.nagari+'</b><br>Terdeteksi '+p.tanggal).addTo(grup);});
+ $('nTitik').textContent=fmt(c);
+ const top=Object.entries(hit).sort((a,b)=>b[1]-a[1]).slice(0,3);
+ $('teratas').textContent=top.length?'Paling banyak: '+top.map(([k,v])=>k+' ('+v+')').join(', '):'Tidak ada titik panas pada rentang ini.';
+}
+g.oninput=gambar;$('rentang').onchange=gambar;gambar();
+})();
+</script></body></html>

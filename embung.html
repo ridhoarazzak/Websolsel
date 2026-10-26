@@ -1,0 +1,38 @@
+<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700&display=swap"><link rel="stylesheet" href="solsel.css"><title>Air dan embung - Solsel Siaga</title></head><body><header></header>
+<main><aside>
+<h1>Sungai dan calon lokasi embung</h1>
+<p>Embung adalah tampungan air kecil untuk cadangan di musim kemarau, termasuk untuk membantu memadamkan kebakaran. Titik biru adalah lokasi yang layak disurvei lebih dulu.</p>
+<label for="fn">Lihat per nagari</label><select id="fn"><option value="">Semua nagari</option></select>
+<ol class="daftar" id="daftar"></ol>
+<button id="unduh">Unduh daftar (CSV)</button>
+<div id="pesan" class="pesan" hidden></div>
+<p class="catatan">Ini saringan awal dari data satelit dan peta lereng: aliran sungai sedang, lahan relatif landai, dekat permukiman. Belum memeriksa kepemilikan lahan, jenis tanah, debit nyata, dan izin. Setiap titik perlu survei lapangan sebelum dirancang.</p>
+</aside><div id="map"></div></main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script><script src="solsel.js"></script>
+<script>
+mulai('embung');const m=buatPeta();
+(async()=>{
+const [nag,sg,em]=await Promise.all([muat('data/nagari_embung.geojson'),muat('data/sungai.geojson'),muat('data/embung_kandidat.geojson')]);
+if(nag){const l=L.geoJSON(nag,{style:{color:'#1F4D3A',weight:1,fillOpacity:.03}}).addTo(m);m.fitBounds(l.getBounds());}
+if(sg)L.geoJSON(sg,{style:{color:'#1668A8',weight:1.4,opacity:.8}}).addTo(m);
+if(!em)return;
+const fs=em.features.sort((a,b)=>b.properties.skor-a.properties.skor);
+[...new Set(fs.map(f=>f.properties.nagari))].sort().forEach(n=>$('fn').add(new Option(n,n)));
+const grup=L.layerGroup().addTo(m);let tampil=[];
+function gambar(){
+ grup.clearLayers();const ol=$('daftar');ol.innerHTML='';
+ tampil=fs.filter(f=>!$('fn').value||f.properties.nagari===$('fn').value);
+ tampil.forEach((f,i)=>{const p=f.properties,[x,y]=f.geometry.coordinates;
+  const mk=L.circleMarker([y,x],{radius:8,color:'#fff',weight:2,fillColor:'#1668A8',fillOpacity:1}).addTo(grup)
+   .bindPopup('<b>'+p.nagari+'</b><br>Kecocokan: '+fmt(p.skor)+' dari 100<br>Luas daerah tangkapan air: '+fmt(p.tangkapan_km2,1)+' km²<br>Kelandaian lahan: '+fmt(p.lereng_der,1)+'°<br>Koordinat: '+y.toFixed(5)+', '+x.toFixed(5));
+  if(i<10){const li=document.createElement('li');li.tabIndex=0;li.innerHTML='<b>'+(i+1)+'. '+p.nagari+'</b><br>kecocokan '+fmt(p.skor)+' dari 100';
+   li.onclick=li.onkeydown=e=>{if(e.type==='click'||e.key==='Enter'){m.setView([y,x],14);mk.openPopup();}};ol.appendChild(li);}
+ });
+ if(!tampil.length)ol.innerHTML='<li>Belum ada lokasi untuk pilihan ini.</li>';
+}
+$('fn').onchange=gambar;gambar();
+$('unduh').onclick=()=>{
+ const b=['nagari,kecocokan,tangkapan_km2,lereng_derajat,lintang,bujur',...tampil.map(f=>{const p=f.properties,c=f.geometry.coordinates;return [p.nagari,p.skor,p.tangkapan_km2,p.lereng_der,c[1],c[0]].join(',');})].join('\n');
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([b],{type:'text/csv'}));a.download='kandidat_embung_solsel.csv';a.click();};
+})();
+</script></body></html>

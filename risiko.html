@@ -1,0 +1,36 @@
+<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700&display=swap"><link rel="stylesheet" href="solsel.css"><title>Banjir dan galodo - Solsel Siaga</title></head><body><header></header>
+<main><aside>
+<h1>Seberapa banyak bangunan di tempat rawan</h1>
+<p>Warna menunjukkan perbandingan antar nagari di Solok Selatan: semakin merah, semakin besar bagian permukiman yang berada di tempat rawan.</p>
+<label for="jenis">Jenis bahaya</label>
+<select id="jenis"><option value="gab">Banjir dan longsor</option><option value="banjir">Banjir (dekat sungai, tanah landai)</option><option value="longsor">Longsor dan galodo (lereng curam)</option></select>
+<div class="legenda" style="margin-top:12px"><div><span style="background:#8FBF9F"></span>Lebih rendah</div><div><span style="background:#E8B93C"></span>Sedang</div><div><span style="background:#C8341B"></span>Lebih tinggi</div><div><span style="background:#ddd"></span>Belum ada data</div></div>
+<div id="info"><p><i>Klik sebuah nagari di peta.</i></p></div>
+<a id="sim" href="galodo/index.html"><button>Lihat simulasi galodo</button></a>
+<div id="pesan" class="pesan" hidden></div>
+<p class="catatan">Tingkat ini hanya membandingkan nagari satu sama lain, bukan ramalan kejadian. Dihitung dari peta lereng, jarak ke sungai, dan perkiraan area terbangun dari satelit. Untuk peringatan dini dan evakuasi, ikuti arahan BPBD dan pemerintah nagari. Ubah alamat tombol simulasi di bagian atas skrip bila alamatnya berbeda.</p>
+</aside><div id="map"></div></main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script><script src="solsel.js"></script>
+<script>
+const SIMULASI_URL='galodo/index.html'; // ganti dengan alamat simulasi galodo Anda
+mulai('risiko');const m=buatPeta();$('sim').href=SIMULASI_URL;
+const WARNA=['#8FBF9F','#E8B93C','#C8341B'],NAMA=['lebih rendah','sedang','lebih tinggi'];
+(async()=>{
+const d=await muat('data/nagari_risiko.geojson');if(!d)return;
+d.features.forEach(f=>{const p=f.properties,b=p.bangunan_ha||0;
+ p.banjir=b>0?p.banjir_ha/b:null;p.longsor=b>0?p.longsor_ha/b:null;p.gab=b>0?(p.banjir_ha+p.longsor_ha)/b:null;});
+let lap,t1,t2;const jenis=()=>$('jenis').value;
+function kelas(f){const v=f.properties[jenis()];return v==null?-1:v<=t1?0:v<=t2?1:2;}
+function gambar(){
+ const v=d.features.map(f=>f.properties[jenis()]).filter(x=>x!=null);t1=kuantil(v,1/3);t2=kuantil(v,2/3);
+ if(lap)m.removeLayer(lap);
+ lap=L.geoJSON(d,{style:f=>{const k=kelas(f);return{color:'#14231F',weight:1,fillColor:k<0?'#ddd':WARNA[k],fillOpacity:.7};},
+  onEachFeature:(f,l)=>l.on('click',()=>info(f))}).addTo(m);
+}
+function info(f){const p=f.properties,k=kelas(f);
+ $('info').innerHTML='<h2 style="font-size:1.1rem;margin:14px 0 4px">'+p.NAMOBJ+'</h2><p>Tingkat: <b>'+(k<0?'belum ada data':NAMA[k])+'</b> dibanding nagari lain.</p>'
+ +'<p>Lahan berlereng curam: '+fmt(p.curam_ha/p.luas_ha*100,1)+'% dari luas nagari.<br>Perkiraan area terbangun di dekat sungai dan landai: '+fmt(p.banjir_ha,1)+' ha.<br>Perkiraan area terbangun di lereng curam: '+fmt(p.longsor_ha,1)+' ha.</p>'
+ +'<p><b>Yang bisa dilakukan warga:</b> kenali jalur dan tempat berkumpul yang aman, siapkan tas darurat, dan segera menjauh dari sungai bila hujan deras berlangsung lama atau air sungai keruh mendadak.</p>';}
+$('jenis').onchange=gambar;gambar();m.fitBounds(lap.getBounds());
+})();
+</script></body></html>
